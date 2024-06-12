@@ -56,8 +56,8 @@ proc test() =
         pinsn = cast[ptr UncheckedArray[cs_insn]](insn)
 
       for j in 0 ..< count:
-        echo &"0x{pinsn[j].address}:\t{CPTR(pinsn[j].mnemonic)}\t{CPTR(pinsn[j].op_str)}"
-      echo &"0x{pinsn[count-1].address + pinsn[count-1].size}"
+        echo &"{pinsn[j].address:#X}:\t{CPTR(pinsn[j].mnemonic)}\t{CPTR(pinsn[j].op_str)}"
+      echo &"{(pinsn[count-1].address + pinsn[count-1].size):#X}"
       cs_free(insn, count)
     else:
       echo "****************"
