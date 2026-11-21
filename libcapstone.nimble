@@ -1,8 +1,8 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.2.0"
 author        = "m4ul3r"
-description   = "Futhark generated wrapper around libcapstone"
+description   = "Bindings for the Capstone disassembly framework: the C API and a small Nim API on top"
 license       = "MIT"
 srcDir        = "src"
 
@@ -10,6 +10,16 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.0.0"
+
+# Capstone itself comes from the system; say how to get it after an install.
+when defined(nimdistros):
+  import distros
+  if detectOs(Ubuntu) or detectOs(Debian):
+    foreignDep "libcapstone-dev"
+  elif detectOs(Fedora) or detectOs(CentOS) or detectOs(RedHat):
+    foreignDep "capstone-devel"
+  else:
+    foreignDep "capstone"
 
 
 # Tasks
