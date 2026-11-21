@@ -1,7 +1,10 @@
 ## Build configuration: where the Capstone library is and which version it is.
 ##
-## By default everything comes from `pkg-config capstone`. For cross builds,
-## static archives or systems without pkg-config, pass the linker flags
+## By default everything comes from `pkg-config capstone`; `-d:capstoneStatic`
+## then links `libcapstone.a` from its library directory instead of the shared
+## library.
+##
+## For cross builds or systems without pkg-config, pass the linker flags
 ## yourself; pkg-config is then not consulted at all:
 ##
 ## * `-d:capstoneLibs="-L/opt/cs/lib -lcapstone"`: linker flags.
@@ -60,11 +63,12 @@ elif defined(nimcheck) or defined(nimsuggest):
     headerFlags* = ""
     headersKnown* = false
     pkgVersion* = ""
-    libMajor* = (if capstoneMajor != 0: capstoneMajor else: 4)
+    libMajor* = (if capstoneMajor != 0: capstoneMajor else: 5)
     libMinor* = -1
 else:
   const
-    linkFlags* = pkgConfig("--libs")
+    linkFlags* = (if defined(capstoneStatic): pkgConfig("--variable=libdir") & "/libcapstone.a"
+                  else: pkgConfig("--libs"))
     headerFlags* = (if capstoneCflags.len > 0: capstoneCflags else: pkgConfig("--cflags"))
     headersKnown* = true
     pkgVersion* = pkgConfig("--modversion")
