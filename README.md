@@ -59,14 +59,32 @@ for insn in cs.disasm(code, address = 0x1000):
 let insns = cs.disasmAll(code, address = 0x1000)
 echo insns.len, " instructions, the first is ", insns[0]
 
+# Keep single instructions past the loop.
+var calls: seq[OwnedInsn]
+for insn in cs.disasm(code, address = 0x1000):
+  if insn.inGroup(X86_GRP_CALL): calls.add insn.clone
+echo calls[0]
+
+# Step by step, deciding what to do with bytes that do not decode.
+let slot = cs.newInsn()
+var
+  offset = 0
+  address = 0x1000'u64
+while offset < code.len:
+  if cs.decode(slot, code, offset, address):
+    echo slot
+  else:
+    inc offset      # skip one byte and try again
+    inc address
+
 # Modes combine with `or`.
 let mips = initCapstone(CS_ARCH_MIPS, CS_MODE_MIPS32 or CS_MODE_BIG_ENDIAN)
 ```
 
-- **Lifetime.** `Capstone` and `Instructions` free what they own when they go out of scope and cannot be copied. An `Insn` is a view: inside `disasm` it is overwritten by the next step, and one taken from `Instructions` dies with them.
+- **Lifetime.** `Capstone` and `Instructions` free what they own when they go out of scope and cannot be copied. An `Insn` is a view: inside `disasm` it is overwritten by the next step, and one taken from `Instructions` dies with them. `insn.clone` gives an `OwnedInsn`, a copy with its detail that lives as long as it is referenced and works wherever an `Insn` does.
 - **Detail.** `insn.detail`, `insn.groups`, `insn.regsRead`, `insn.regsWrite` and the per-architecture accessors (`insn.x86`, `insn.arm`, `insn.arm64`, `insn.mips`, `insn.ppc`, ...) raise `CapstoneError` when there is nothing to read: detail is off, the item is skipped data, or the instruction is of another architecture. `insn.hasDetail` asks first. `cs.regsAccess(insn)` lists every register read and written.
 - **Errors.** `CapstoneError` carries Capstone's error code in `code`.
-- **Disassembly stops** at the first bytes that do not decode unless skipdata is on. Skipped data comes out as items with `id == 0`.
+- **Disassembly stops** at the first bytes that do not decode unless skipdata is on. Skipped data comes out as items with `id == 0`. For full control use `cs.decode`, which decodes one instruction at an offset and reports failure instead of stopping.
 - **Threads.** One `Capstone` per thread. Capstone keeps unsynchronised state per handle.
 - `cs.handle` gives the C handle, and `cs.toInsn(ptr)` wraps a `ptr cs_insn`, so both APIs can be mixed.
 
