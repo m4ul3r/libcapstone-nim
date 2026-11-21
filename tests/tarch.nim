@@ -1,8 +1,27 @@
 ## Architectures and modes other than x86-64: that the mode constants select
 ## what they say, and that per-architecture detail is readable.
 
-import std/unittest
+import std/[macros, unittest]
 import libcapstone
+
+macro checkAccessors(union: typedesc; insn: untyped): untyped =
+  ## For every member of the per-architecture union in `cs_detail`: a check
+  ## that `insn.<member>` compiles, and `insn.<member>.ops` when the member
+  ## lists operands. The accessors are templates generated from the union, so
+  ## nothing else type-checks the ones no test happens to use.
+  result = newStmtList()
+  for member in union.getTypeImpl[1].getTypeImpl[2]:
+    let
+      text = member[0].strVal
+      name = ident(text)
+    var fields: seq[string]
+    for field in member[1].getTypeImpl[2]: fields.add field[0].strVal
+    result.add quote do:
+      checkpoint `text`
+      check compiles(`insn`.`name`)
+    if "operands" in fields and "op_count" in fields:
+      result.add quote do:
+        check compiles(`insn`.`name`.ops)
 
 type Case = tuple
   name: string
@@ -55,6 +74,12 @@ suite "architectures and modes":
       if texts.len > 0:
         check texts[0] == c.first
         check texts[^1] == c.last
+
+suite "accessors":
+  test "every architecture in cs_detail has an accessor that compiles":
+    let cs = initCapstone(CS_ARCH_X86, CS_MODE_64, detail = true)
+    for insn in cs.disasm([0x90'u8]):
+      checkAccessors(typeof(cs_detail().arch), insn)
 
 suite "detail per architecture":
   test "ARM":
