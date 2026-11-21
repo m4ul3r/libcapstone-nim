@@ -3,6 +3,7 @@
 ## build, or the program, stops with the right diagnosis.
 
 import std/[os, osproc, strtabs, strutils, tempfiles, unittest]
+import libcapstone
 
 const
   nimExe = getCurrentCompilerExe()
@@ -33,13 +34,15 @@ echo cs_open(CS_ARCH_X86, CS_MODE_64, addr handle), " handle=", handle
   type Stage = enum
     nimOnly  ## stop after Nim's own checks
     compileC ## also run the C compiler
+    link     ## produce `work/probe`
 
   proc build(args: openArray[string] = []; fake = true;
              stage = nimOnly): tuple[output: string; ok: bool] =
     var cmd = quoteShellCommand([nimExe, "c", "--hints:off",
       (case stage
        of nimOnly: "--compileOnly"
-       of compileC: "--noLinking"),
+       of compileC: "--noLinking"
+       of link: "-o:" & work / "probe"),
       "--nimcache:" & work / "cache", "-p:" & srcDir])
     for arg in args: cmd.add " " & quoteShell(arg)
     cmd.add " " & quoteShell(probe)
@@ -63,6 +66,10 @@ echo cs_open(CS_ARCH_X86, CS_MODE_64, addr handle), " handle=", handle
     test "a Capstone older than the bindings is refused":
       fakeVersion("3.0.5")
       check "Capstone 3.0.5 is not supported" in refusal()
+
+    test "Capstone 5.0.1, which numbers operand types differently, is refused":
+      fakeVersion("5.0.1")
+      check "5.0.2 or later" in refusal()
 
     test "a missing Capstone is diagnosed with an install hint":
       fakePkgConfig("echo 'Package capstone was not found' >&2; exit 1")
@@ -93,5 +100,17 @@ typedef struct { lcn_real_cs_insn real; char grown[8]; } cs_insn;
 """)
       check "cs_insn layout differs from the Nim bindings" in
         refusal(["-d:capstoneCflags=-I" & headers & " " & realFlags], fake = false, stage = compileC)
+
+  suite "run-time guard":
+    test "cs_open refuses a library of another version than the bindings":
+      # Bindings for the other supported major, linked against the installed library.
+      let
+        otherMajor = if CS_API_MAJOR == 4: 5 else: 4
+        libs = execCmdEx("pkg-config --libs capstone").output.strip
+        (output, ok) = build(["-d:capstoneLibs=" & libs, "-d:capstoneMajor=" & $otherMajor],
+                             fake = false, stage = link)
+      require ok
+      check output.strip == ""
+      check execCmdEx(quoteShell(work / "probe")).output.strip == "CS_ERR_VERSION handle=0"
 
   removeDir(work)

@@ -18,13 +18,18 @@ import private/config
 
 when libMajor == 4:
   import gen_v4 as gen
+  # `cs_disasm_ex` is deprecated in Capstone 4 and gone in Capstone 5.
+  export gen except cs_open, cs_regs_access, cs_vsnprintf_t, cs_opt_mem, struct_cs_opt_mem,
+    cs_disasm_ex
+elif libMajor == 5:
+  when pkgVersion in ["5.0", "5.0.0", "5.0.1"]:
+    # They number CS_OP_MEM and CS_OP_FP differently from every later 5.0.x.
+    {.error: "libcapstone: Capstone " & pkgVersion & " is not supported; 5.0.2 or later is.".}
+  import gen_v5 as gen
+  export gen except cs_open, cs_regs_access, cs_vsnprintf_t, cs_opt_mem, struct_cs_opt_mem
 else:
   {.error: "libcapstone: Capstone " & (if pkgVersion.len > 0: pkgVersion else: $libMajor & ".x") &
-           " is not supported. Bindings exist for Capstone 4.0.x.".}
-
-# `cs_disasm_ex` is deprecated in Capstone 4 and gone in Capstone 5.
-export gen except cs_open, cs_regs_access, cs_vsnprintf_t, cs_opt_mem, struct_cs_opt_mem,
-  cs_disasm_ex
+           " is not supported. Bindings exist for Capstone 4.0.x and 5.0.x (5.0.2 or later).".}
 
 when pkgVersion.len > 0 and (libMajor != CS_API_MAJOR or libMinor != CS_API_MINOR):
   {.error: "libcapstone: the bindings are for Capstone " & $CS_API_MAJOR & "." & $CS_API_MINOR &
