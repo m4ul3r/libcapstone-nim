@@ -11,6 +11,7 @@
 ## * at run time, `cs_open` returns `CS_ERR_VERSION` when the loaded library
 ##   is another version.
 
+import std/strutils
 import private/config
 
 {.passl: linkFlags.}
@@ -78,5 +79,15 @@ type
     realloc*: cs_realloc_t
     free*: cs_free_t
     vsnprintf*: cs_vsnprintf_t
+
+# Overloads for the types client code has at hand.
+
+func `or`*(a, b: cs_mode): cs_mode {.borrow.}
+func `and`*(a, b: cs_mode): cs_mode {.borrow.}
+func `==`*(a, b: cs_mode): bool {.borrow.}
+func `$`*(mode: cs_mode): string =
+  ## The mode bits in hex. The same bit means different things on different
+  ## architectures, so there is no single name to print.
+  "0x" & toHex(uint32(mode))
 
 template CPTR*(s: untyped): cstring = cast[cstring](s[0].addr)
