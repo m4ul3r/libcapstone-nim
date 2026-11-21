@@ -18,6 +18,9 @@ task examples, "Build and run the examples":
   for name in ["basic", "x86_detail", "raw_api"]:
     exec "nim c -r --hints:off -p:src examples/" & name & ".nim"
 
+task docs, "Generate the API documentation into htmldocs/":
+  exec "nim doc --project --index:on --outdir:htmldocs src/libcapstone.nim"
+
 # Maintainer task; see the README for the toolchain it needs.
 taskRequires "regen", "futhark == 0.16.1"
 
