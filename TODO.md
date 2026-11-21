@@ -1,17 +1,15 @@
 # TODO
 
-State on 2026-11-21, after working through the audit of the same day. Everything under "Done" is committed as a stack of pull requests ([stack 10](https://github.com/m4ul3r/libcapstone-nim/stack/10)) on top of `v0.1.0`, the head before this work, and verified as listed under "Verification".
+State on 2026-11-21, after working through the audit of the same day. Everything under "Done" is in `v0.2.0`, which was merged as a stack of pull requests ([stack 10](https://github.com/m4ul3r/libcapstone-nim/stack/10)) on top of `v0.1.0`, the head before this work. It was verified as listed under "Verification".
 
 ## Open
 
-Ordered by what blocks a release.
+None of these blocks a release.
 
-- [ ] **Y3. Merge the stack and tag `v0.2.0`.** nimble takes versions from tags; `v0.1.0` marks the head before this work and the nimble file says 0.2.0. The changes break source compatibility with 0.1.0: `anon0` / `typefield` are renamed, `cs_mode` is a distinct type, `cs_disasm_ex` is gone, `CPTR` is deprecated.
-- [ ] **T6. Get the CI running.** `.github/workflows/ci.yml` is in the stack, but GitHub has not started it for any pull request: the repository has no workflow run and no check suite at all. Actions is enabled for the repository, the workflow file is in the pull requests' merge commits (and, from the tenth pull request on, in their base branch), and GitHub reported no incident. No other repository of the account has a run either, so check the account's Actions settings first. The workflow's commands were all run by hand (test matrix, Capstone 5 build, valgrind step, `nimble docs`). Nim `devel` is not in the matrix yet.
 - [ ] **V5. Capstone 5.0 and 5.0.1 are refused** (Fedora 40 to 42, CentOS Stream 10, Alpine 3.19 and 3.20). They differ from 5.0.2+ in three enum values only: `CS_OP_MEM`, `CS_OP_FP`, `TRICORE_OP_MEM`. Supporting them means letting those three vary with the patch version. Decide whether those distros matter.
-- [ ] **L4. macOS and native Windows are untested.** Windows was verified by cross-compiling with MinGW against a static Capstone 5.0.9 and running under Wine (`basic` and `x86_detail` print the same as on Linux). The CI has a macOS job that is allowed to fail.
+- [ ] **L4. macOS and native Windows are untested.** Windows was verified by cross-compiling with MinGW against a static Capstone 5.0.9 and running under Wine (`basic` and `x86_detail` print the same as on Linux).
 - [ ] **V6. Capstone 6, once 6.0.0 is released.** Add 6 to the supported majors in `tools/gen.nim` and `raw.nim`, run `nimble regen` against it, without the compat headers (with `CAPSTONE_AARCH64_COMPAT_HEADER` the first Futhark pass fails). Expect source changes for users: `CS_ARCH_ARM64` → `CS_ARCH_AARCH64`, `CS_ARCH_SYSZ` → `CS_ARCH_SYSTEMZ`, operand `access` becomes an enum, `CS_OPT_ON` changes from 3 to 1, syntax options become bit flags. The alphas change layout between each other, so do not ship bindings for them.
-- [ ] **Y8. Publish the docs.** `nimble docs` builds them into `htmldocs/` and the CI builds them on every push; GitHub Pages needs to be switched on in the repository settings and a deploy step added.
+- [ ] **Y8. Publish the docs.** `nimble docs` builds them into `htmldocs/`; GitHub Pages needs to be switched on in the repository settings and something has to deploy them.
 - [ ] **L5. 32-bit targets are untested** (no i386 Capstone here).
 - [ ] **L1b. Optional: a `dynlib` mode** for users without the dev package (`libcapstone.so(.5|.4)`, `capstone.dll`). Without pkg-config the major version would have to be given.
 - [ ] **L3. Optional: a vendored static build** behind a define. Measured for Capstone 5: 7 s to build, about 10 MB per binary.
@@ -97,19 +95,22 @@ One thing the generator does that is easy to forget: it drops macros that alias 
 - [x] **L1.** `-d:capstoneStatic`.
 - [x] **L2.** Cross compilation through `-d:capstoneLibs`, `-d:capstoneMajor`, `-d:capstoneCflags`; MinGW recipe in the README, run under Wine.
 
-### Tests and CI
+### Tests
 
 - [x] **T1.** `tests/` with 66 tests in 7 files; `nimble test` runs them.
 - [x] **T2.** `tests/tarch.nim`: x86 16/32/64, ARM64 and six MIPS mode combinations.
 - [x] **T3.** Edge cases in `tests/tapi.nim` and `tests/traw.nim`: empty input, detail off, skipdata, mode combinations, invalid mode, `cs_regs_access`, custom mnemonic, AT&T syntax, early `break`.
 - [x] **T4.** Detail for ARM, ARM64, MIPS and PowerPC; every per-architecture accessor is checked to compile, since they are generated templates that nothing else type-checks.
-- [x] **T5.** valgrind job in the CI; its settings fail on a deliberate leak and pass on the suite.
+- [x] **T5.** The suite is clean under valgrind and ASan. This is a manual check; valgrind needs `-d:useMalloc` and `--errors-for-leak-kinds=definite,indirect`, which fails on a deliberate leak and ignores one block `std/unittest` keeps.
 - [x] **T7.** `tests/tguards.nim`: every build-time refusal with a fake pkg-config, the header check with a doctored `capstone.h`, the run-time refusal with the other major's bindings, the `--mm:refc` refusal.
+
+There is no CI. A GitHub Actions workflow was written and removed again: GitHub never started it for this repository.
 
 ### Repository
 
 - [x] **Y1.** `LICENSE` (MIT, "Copyright (c) 2024 m4ul3r": check the holder and year).
 - [x] **Y2.** README.
+- [x] **Y3.** Tags: `v0.1.0` is the head before this work, `v0.2.0` the result. 0.2.0 breaks source compatibility with 0.1.0: `anon0` / `typefield` are renamed, `cs_mode` is a distinct type, `cs_disasm_ex` is gone, `CPTR` is deprecated.
 - [x] **Y4.** Generated code under `src/libcapstone/`.
 - [x] **Y5.** `.gitignore`.
 - [x] **Y6.** Nimble tasks `examples`, `docs`, `regen`; `foreignDep` hints; version 0.2.0.
@@ -134,7 +135,7 @@ Last full run, all passing:
 | `nimble test`, `nimble examples`, `nimble docs`, `nimble check`, `nimble regen` (v4 and v5), `nimble install` then use from another project | pass | |
 | MinGW cross build against Capstone 5.0.9, under Wine | | `basic`, `x86_detail` |
 
-Not covered by any run: GitHub Actions, macOS, native Windows, 32-bit targets, Capstone 5.0.2 to 5.0.8 (only their headers were compared: no layout change from 5.0.2 to 5.0.9).
+Not covered by any run: macOS, native Windows, 32-bit targets, Capstone 5.0.2 to 5.0.8 (only their headers were compared: no layout change from 5.0.2 to 5.0.9).
 
 ## Working notes
 
