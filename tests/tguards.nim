@@ -36,8 +36,8 @@ echo cs_open(CS_ARCH_X86, CS_MODE_64, addr handle), " handle=", handle
     compileC ## also run the C compiler
     link     ## produce `work/probe`
 
-  proc build(args: openArray[string] = []; fake = true;
-             stage = nimOnly): tuple[output: string; ok: bool] =
+  proc build(args: openArray[string] = []; fake = true; stage = nimOnly;
+             source = probe): tuple[output: string; ok: bool] =
     var cmd = quoteShellCommand([nimExe, "c", "--hints:off",
       (case stage
        of nimOnly: "--compileOnly"
@@ -45,16 +45,16 @@ echo cs_open(CS_ARCH_X86, CS_MODE_64, addr handle), " handle=", handle
        of link: "-o:" & work / "probe"),
       "--nimcache:" & work / "cache", "-p:" & srcDir])
     for arg in args: cmd.add " " & quoteShell(arg)
-    cmd.add " " & quoteShell(probe)
+    cmd.add " " & quoteShell(source)
     let env = newStringTable(modeCaseSensitive)
     for key, value in envPairs(): env[key] = value
     if fake: env["PATH"] = fakeBin & PathSep & getEnv("PATH")
     let (output, exitCode) = execCmdEx(cmd, env = env)
     (output, exitCode == 0)
 
-  proc refusal(args: openArray[string] = []; fake = true; stage = nimOnly): string =
+  proc refusal(args: openArray[string] = []; fake = true; stage = nimOnly; source = probe): string =
     ## The compiler output of a build that must fail.
-    let (output, ok) = build(args, fake, stage)
+    let (output, ok) = build(args, fake, stage, source)
     check not ok
     output
 
@@ -100,6 +100,11 @@ typedef struct { lcn_real_cs_insn real; char grown[8]; } cs_insn;
 """)
       check "cs_insn layout differs from the Nim bindings" in
         refusal(["-d:capstoneCflags=-I" & headers & " " & realFlags], fake = false, stage = compileC)
+
+    test "the Nim API without ORC or ARC is refused with the reason":
+      let apiProbe = work / "api_probe.nim"
+      writeFile(apiProbe, "import libcapstone\nlet cs = initCapstone(CS_ARCH_X86, CS_MODE_64)\n")
+      check "needs --mm:orc or --mm:arc" in refusal(["--mm:refc"], fake = false, source = apiProbe)
 
   suite "run-time guard":
     test "cs_open refuses a library of another version than the bindings":
