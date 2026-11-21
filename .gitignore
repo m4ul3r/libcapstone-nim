@@ -1,0 +1,11 @@
+nimcache/
+htmldocs/
+nimble.develop
+nimble.paths
+
+# Binaries that `nimble test` and `nim c` put next to the sources.
+/tests/*
+!/tests/*.nim
+!/tests/*.nims
+/examples/*
+!/examples/*.nim
