@@ -1,13 +1,13 @@
 # TODO
 
-State on 2026-11-21, after working through the audit of the same day. Everything under "Done" is committed as a stack of pull requests, one per section, on top of `v0.1.0` (the head before this work), and verified as listed under "Verification".
+State on 2026-11-21, after working through the audit of the same day. Everything under "Done" is committed as a stack of pull requests ([stack 10](https://github.com/m4ul3r/libcapstone-nim/stack/10)) on top of `v0.1.0`, the head before this work, and verified as listed under "Verification".
 
 ## Open
 
 Ordered by what blocks a release.
 
 - [ ] **Y3. Merge the stack and tag `v0.2.0`.** nimble takes versions from tags; `v0.1.0` marks the head before this work and the nimble file says 0.2.0. The changes break source compatibility with 0.1.0: `anon0` / `typefield` are renamed, `cs_mode` is a distinct type, `cs_disasm_ex` is gone, `CPTR` is deprecated.
-- [ ] **T6. Get the CI green.** `.github/workflows/ci.yml` runs for the first time on the pull request that adds it. Its commands were run by hand before (the test matrix, the Capstone 5 build, the valgrind step, `nimble docs`). Nim `devel` is not in the matrix yet.
+- [ ] **T6. Get the CI running.** `.github/workflows/ci.yml` is in the stack, but GitHub has not started it for any pull request: the repository has no workflow run and no check suite at all. Actions is enabled for the repository, the workflow file is in the pull requests' merge commits (and, from the tenth pull request on, in their base branch), and GitHub reported no incident. No other repository of the account has a run either, so check the account's Actions settings first. The workflow's commands were all run by hand (test matrix, Capstone 5 build, valgrind step, `nimble docs`). Nim `devel` is not in the matrix yet.
 - [ ] **V5. Capstone 5.0 and 5.0.1 are refused** (Fedora 40 to 42, CentOS Stream 10, Alpine 3.19 and 3.20). They differ from 5.0.2+ in three enum values only: `CS_OP_MEM`, `CS_OP_FP`, `TRICORE_OP_MEM`. Supporting them means letting those three vary with the patch version. Decide whether those distros matter.
 - [ ] **L4. macOS and native Windows are untested.** Windows was verified by cross-compiling with MinGW against a static Capstone 5.0.9 and running under Wine (`basic` and `x86_detail` print the same as on Linux). The CI has a macOS job that is allowed to fail.
 - [ ] **V6. Capstone 6, once 6.0.0 is released.** Add 6 to the supported majors in `tools/gen.nim` and `raw.nim`, run `nimble regen` against it, without the compat headers (with `CAPSTONE_AARCH64_COMPAT_HEADER` the first Futhark pass fails). Expect source changes for users: `CS_ARCH_ARM64` → `CS_ARCH_AARCH64`, `CS_ARCH_SYSZ` → `CS_ARCH_SYSTEMZ`, operand `access` becomes an enum, `CS_OPT_ON` changes from 3 to 1, syntax options become bit flags. The alphas change layout between each other, so do not ship bindings for them.
@@ -99,10 +99,10 @@ One thing the generator does that is easy to forget: it drops macros that alias 
 
 ### Tests and CI
 
-- [x] **T1.** `tests/` with 65 tests in 7 files; `nimble test` runs them.
+- [x] **T1.** `tests/` with 66 tests in 7 files; `nimble test` runs them.
 - [x] **T2.** `tests/tarch.nim`: x86 16/32/64, ARM64 and six MIPS mode combinations.
 - [x] **T3.** Edge cases in `tests/tapi.nim` and `tests/traw.nim`: empty input, detail off, skipdata, mode combinations, invalid mode, `cs_regs_access`, custom mnemonic, AT&T syntax, early `break`.
-- [x] **T4.** Detail for ARM, ARM64, MIPS and PowerPC.
+- [x] **T4.** Detail for ARM, ARM64, MIPS and PowerPC; every per-architecture accessor is checked to compile, since they are generated templates that nothing else type-checks.
 - [x] **T5.** valgrind job in the CI; its settings fail on a deliberate leak and pass on the suite.
 - [x] **T7.** `tests/tguards.nim`: every build-time refusal with a fake pkg-config, the header check with a doctored `capstone.h`, the run-time refusal with the other major's bindings, the `--mm:refc` refusal.
 
@@ -126,9 +126,9 @@ Last full run, all passing:
 
 | Configuration | Tests | Examples |
 |---|---|---|
-| Nim 2.4.2, Capstone 4.0.2: default, `--mm:arc`, `-d:release`, `-d:danger`, `nim cpp`, clang, `-d:capstoneStatic` | 61 | same output in every configuration |
-| Nim 2.2.10 and 2.0.16, Capstone 4.0.2 | 61 | same |
-| Nim 2.4.2 and 2.0.16, Capstone 5.0.9 | 61 | same as on 4.0.2 |
+| Nim 2.4.2, Capstone 4.0.2: default, `--mm:arc`, `-d:release`, `-d:danger`, `nim cpp`, clang, `-d:capstoneStatic` | 66 | same output in every configuration |
+| Nim 2.2.10 and 2.0.16, Capstone 4.0.2 | 66 | same |
+| Nim 2.4.2 and 2.0.16, Capstone 5.0.9 | 66 | same as on 4.0.2 |
 | `--mm:refc`, Capstone 4.0.2 | the 26 C-API tests | `raw_api` |
 | valgrind (`traw`, `tapi`, `tarch`), ASan + UBSan (`tapi`) | clean | |
 | `nimble test`, `nimble examples`, `nimble docs`, `nimble check`, `nimble regen` (v4 and v5), `nimble install` then use from another project | pass | |
