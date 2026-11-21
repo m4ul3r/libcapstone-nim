@@ -27,6 +27,7 @@ when defined(nimdistros):
 task examples, "Build and run the examples":
   for name in ["basic", "x86_detail", "raw_api"]:
     exec "nim c -r --hints:off -p:src examples/" & name & ".nim"
+  exec "nim c -r --hints:off -p:src examples/cstool.nim -d x64 \"55 48 89 e5 06 e8 00 00 00 00 c3\" 0x1000"
 
 task docs, "Generate the API documentation into htmldocs/":
   exec "nim doc --project --index:on --outdir:htmldocs src/libcapstone.nim"

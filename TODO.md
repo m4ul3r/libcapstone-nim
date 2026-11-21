@@ -118,6 +118,7 @@ One thing the generator does that is easy to forget: it drops macros that alias 
 ### Examples
 
 - [x] **X1 to X11.** The four `test_*.nim` files are replaced by `basic.nim` (all platforms, one table), `x86_detail.nim` (the shellcode with full detail) and `raw_api.nim` (the C API). The bugs listed in the audit went with the rewrite: the `cast[bool]` nil check, the register list bounded by the wrong count, immediates printed as register names, the dead flags block, the truncated displacement, the label typos, and the command-line string disassembled as code.
+- [x] **X12.** `examples/cstool.nim`: a command-line disassembler for 16 targets that prints bytes that do not decode as data and carries on, built on `cs.decode`.
 
 ## Verification
 

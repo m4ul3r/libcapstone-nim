@@ -33,7 +33,12 @@ Needs Nim 2.0 or later. Tested on Linux x86-64 with Nim 2.0.16, 2.2.10 and 2.4.2
 
 ## The Nim API
 
-Needs `--mm:orc` or `--mm:arc`, the defaults. `nimble docs` builds the full reference; `examples/basic.nim` and `examples/x86_detail.nim` show it in use.
+Needs `--mm:orc` or `--mm:arc`, the defaults. `nimble docs` builds the full reference; `examples/basic.nim` and `examples/x86_detail.nim` show it in use, and `examples/cstool.nim` is a small command-line disassembler:
+
+```
+$ nim c -p:src examples/cstool.nim
+$ examples/cstool -d x64 "55 48 89 e5 c3" 0x1000
+```
 
 ```nim
 import libcapstone
