@@ -14,6 +14,10 @@ requires "nim >= 2.0.0"
 
 # Tasks
 
+task examples, "Build and run the examples":
+  for name in ["basic", "x86_detail", "raw_api"]:
+    exec "nim c -r --hints:off -p:src examples/" & name & ".nim"
+
 # Maintainer task; see the README for the toolchain it needs.
 taskRequires "regen", "futhark == 0.16.1"
 
