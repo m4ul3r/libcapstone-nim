@@ -56,10 +56,10 @@ proc printInsnDetail(ud: csh, mode: cs_mode, ins: ptr cs_insn) =
     regs_read_count, regs_write_count: uint8
 
   # detail can be NULL on data instructions if SKIPDATA option is turned on
-  if (cast[bool](ins.detail.anon0.x86)):
+  if (cast[bool](ins.detail.arch.x86)):
     return
 
-  x86 = (ins.detail.anon0.x86).addr
+  x86 = (ins.detail.arch.x86).addr
   printStringHex("\tPrefix: ", cast[ptr uint8](x86.prefix[0].addr), 4)
   printStringHex("\tOpcode: ", cast[ptr uint8](x86.opcode[0].addr), 4)
   echo &"\trex: {x86.rex:#X}"
@@ -110,7 +110,7 @@ proc printInsnDetail(ud: csh, mode: cs_mode, ins: ptr cs_insn) =
     var pOperands = cast[ptr UncheckedArray[csx86op]](x86.operands[0].addr)
     for i in 1 ..< count+1:
       var index = cs_op_index(ud, ins, X86_OP_IMM.cuint, i.cuint)
-      echo &"\t\timms[{i}]: {pOperands[index].anon0.imm:#X}"
+      echo &"\t\timms[{i}]: {pOperands[index].value.imm:#X}"
       if (x86.encoding.imm_offset != 0):
         echo &"\timm_offset: {x86.encoding.imm_offset:#X}"
       if (x86.encoding.imm_size != 0):
@@ -124,23 +124,23 @@ proc printInsnDetail(ud: csh, mode: cs_mode, ins: ptr cs_insn) =
   for i in 0'u8 ..< x86.op_count:
     var op: ptr cs_x86_op = (pOperands[i].addr)
 
-    case (cast[int](op.typefield)):
+    case (cast[int](op.kind)):
     of X86_OP_REG.int:
-      echo &"\t\toperands[{i}].type: REG = {cs_reg_name(handle, op.anon0.reg.cuint)}"
+      echo &"\t\toperands[{i}].type: REG = {cs_reg_name(handle, op.value.reg.cuint)}"
     of X86_OP_IMM.int:
-      echo &"\t\toperands[{i}].type: IMM = {cs_reg_name(handle, op.anon0.imm.cuint)}"
+      echo &"\t\toperands[{i}].type: IMM = {cs_reg_name(handle, op.value.imm.cuint)}"
     of X86_OP_MEM.int:
       echo &"\t\toperands[{i}].type: MEM"
-      if (op.anon0.mem.segment != X86_REG_INVALID):
-        echo &"\t\toperands[{i}].mem.segment: REG = {cs_reg_name(handle, op.anon0.mem.segment.cuint)}"
-      if (op.anon0.mem.base != X86_REG_INVALID):
-        echo &"\t\toperands[{i}].mem.base: REG = {cs_reg_name(handle, op.anon0.mem.base.cuint)}"
-      if (op.anon0.mem.index != X86_REG_INVALID):
-        echo &"\t\toperands[{i}].mem.index: REG = {cs_reg_name(handle, op.anon0.mem.index.cuint)}"
-      if (op.anon0.mem.scale != 1):
-        echo &"\t\toperands[{i}].mem.scale: {op.anon0.mem.scale.cuint}"
-      if (op.anon0.mem.disp != 0):
-        echo &"\t\toperands[{i}].mem.disp: {op.anon0.mem.disp.cuint:#X}"
+      if (op.value.mem.segment != X86_REG_INVALID):
+        echo &"\t\toperands[{i}].mem.segment: REG = {cs_reg_name(handle, op.value.mem.segment.cuint)}"
+      if (op.value.mem.base != X86_REG_INVALID):
+        echo &"\t\toperands[{i}].mem.base: REG = {cs_reg_name(handle, op.value.mem.base.cuint)}"
+      if (op.value.mem.index != X86_REG_INVALID):
+        echo &"\t\toperands[{i}].mem.index: REG = {cs_reg_name(handle, op.value.mem.index.cuint)}"
+      if (op.value.mem.scale != 1):
+        echo &"\t\toperands[{i}].mem.scale: {op.value.mem.scale.cuint}"
+      if (op.value.mem.disp != 0):
+        echo &"\t\toperands[{i}].mem.disp: {op.value.mem.disp.cuint:#X}"
     else:
       discard
 
@@ -180,20 +180,20 @@ proc printInsnDetail(ud: csh, mode: cs_mode, ins: ptr cs_insn) =
         stdout.write &" {cs_reg_name(handle, pRegsWrite[i])}"
       stdout.writeLine ""
   
-  if (x86.anon0.eflags.bool or x86.anon0.fpu_flags.bool):
+  if (x86.flags.eflags.bool or x86.flags.fpu_flags.bool):
     var pGroups = cast[ptr UncheckedArray[uint8]](ins.detail.groups[0].addr)
     for i in 0'u8 ..< ins.detail.groups_count:
       if (pGroups[i] == X86_GRP_FPU.uint8):
         stdout.write "\tFPU_FLAGS:"
         for j in 0 .. 63:
-          if (x86.anon0.fpu_flags.int and (1'u8 shl i).int).bool:
+          if (x86.flags.fpu_flags.int and (1'u8 shl i).int).bool:
             discard
             # stdout.write &" {get_fpu_flag_name(1 shl i)}" # TODO: not implemented
           echo ""
       if (i == ins.detail.groups_count):
         stdout.write "\tEFLAGS:"
         for j in 0 .. 63:
-          if (x86.anon0.eflags.int and (1'u8 shl i).int).bool:
+          if (x86.flags.eflags.int and (1'u8 shl i).int).bool:
             # stdout.write &" {get_eflag_name(1 shl i)}" # TODO: not implemented
             discard
           echo ""
