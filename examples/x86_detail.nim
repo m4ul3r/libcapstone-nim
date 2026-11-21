@@ -1,0 +1,114 @@
+## Everything Capstone knows about each instruction of a piece of x86-64
+## shellcode: encoding, operands, registers, groups and flags.
+
+import std/[sequtils, strformat, strutils]
+import libcapstone
+
+# msfvenom -p windows/x64/exec CMD="calc.exe" EXITFUNC=thread -f nim
+const shellcode = [
+  byte 0xfc,0x48,0x83,0xe4,0xf0,0xe8,0xc0,0x00,0x00,0x00,0x41,
+  0x51,0x41,0x50,0x52,0x51,0x56,0x48,0x31,0xd2,0x65,0x48,0x8b,
+  0x52,0x60,0x48,0x8b,0x52,0x18,0x48,0x8b,0x52,0x20,0x48,0x8b,
+  0x72,0x50,0x48,0x0f,0xb7,0x4a,0x4a,0x4d,0x31,0xc9,0x48,0x31,
+  0xc0,0xac,0x3c,0x61,0x7c,0x02,0x2c,0x20,0x41,0xc1,0xc9,0x0d,
+  0x41,0x01,0xc1,0xe2,0xed,0x52,0x41,0x51,0x48,0x8b,0x52,0x20,
+  0x8b,0x42,0x3c,0x48,0x01,0xd0,0x8b,0x80,0x88,0x00,0x00,0x00,
+  0x48,0x85,0xc0,0x74,0x67,0x48,0x01,0xd0,0x50,0x8b,0x48,0x18,
+  0x44,0x8b,0x40,0x20,0x49,0x01,0xd0,0xe3,0x56,0x48,0xff,0xc9,
+  0x41,0x8b,0x34,0x88,0x48,0x01,0xd6,0x4d,0x31,0xc9,0x48,0x31,
+  0xc0,0xac,0x41,0xc1,0xc9,0x0d,0x41,0x01,0xc1,0x38,0xe0,0x75,
+  0xf1,0x4c,0x03,0x4c,0x24,0x08,0x45,0x39,0xd1,0x75,0xd8,0x58,
+  0x44,0x8b,0x40,0x24,0x49,0x01,0xd0,0x66,0x41,0x8b,0x0c,0x48,
+  0x44,0x8b,0x40,0x1c,0x49,0x01,0xd0,0x41,0x8b,0x04,0x88,0x48,
+  0x01,0xd0,0x41,0x58,0x41,0x58,0x5e,0x59,0x5a,0x41,0x58,0x41,
+  0x59,0x41,0x5a,0x48,0x83,0xec,0x20,0x41,0x52,0xff,0xe0,0x58,
+  0x41,0x59,0x5a,0x48,0x8b,0x12,0xe9,0x57,0xff,0xff,0xff,0x5d,
+  0x48,0xba,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x48,0x8d,
+  0x8d,0x01,0x01,0x00,0x00,0x41,0xba,0x31,0x8b,0x6f,0x87,0xff,
+  0xd5,0xbb,0xe0,0x1d,0x2a,0x0a,0x41,0xba,0xa6,0x95,0xbd,0x9d,
+  0xff,0xd5,0x48,0x83,0xc4,0x28,0x3c,0x06,0x7c,0x0a,0x80,0xfb,
+  0xe0,0x75,0x05,0xbb,0x47,0x13,0x72,0x6f,0x6a,0x00,0x59,0x41,
+  0x89,0xda,0xff,0xd5,0x63,0x61,0x6c,0x63,0x2e,0x65,0x78,0x65,
+  0x00]
+
+# The payload ends with the command line, which is data, not code.
+const commandLine = "calc.exe\0"
+
+const arithmeticFlags = {
+  "CF": (X86_EFLAGS_MODIFY_CF, X86_EFLAGS_TEST_CF), "ZF": (X86_EFLAGS_MODIFY_ZF, X86_EFLAGS_TEST_ZF),
+  "SF": (X86_EFLAGS_MODIFY_SF, X86_EFLAGS_TEST_SF), "OF": (X86_EFLAGS_MODIFY_OF, X86_EFLAGS_TEST_OF),
+  "PF": (X86_EFLAGS_MODIFY_PF, X86_EFLAGS_TEST_PF), "AF": (X86_EFLAGS_MODIFY_AF, X86_EFLAGS_TEST_AF),
+  "DF": (X86_EFLAGS_MODIFY_DF, X86_EFLAGS_TEST_DF)}
+
+proc hex(bytes: openArray[byte]): string =
+  bytes.mapIt(toHex(it)).join(" ")
+
+proc printOperand(cs: Capstone; index: int; op: cs_x86_op) =
+  let label = &"    operands[{index}]"
+  case op.kind
+  of X86_OP_REG:
+    echo &"{label}: register {cs.regName(op.value.reg)}"
+  of X86_OP_IMM:
+    echo &"{label}: immediate {op.value.imm:#x}"
+  of X86_OP_MEM:
+    let mem = op.value.mem
+    var parts: seq[string]
+    if mem.segment != X86_REG_INVALID: parts.add &"segment {cs.regName(mem.segment)}"
+    if mem.base != X86_REG_INVALID: parts.add &"base {cs.regName(mem.base)}"
+    if mem.index != X86_REG_INVALID: parts.add &"index {cs.regName(mem.index)} * {mem.scale}"
+    if mem.disp != 0: parts.add &"displacement {mem.disp:#x}"
+    echo &"{label}: memory, ", parts.join(", ")
+  else:
+    discard
+  let access = case op.access
+    of uint8(ord(CS_AC_READ)): "read"
+    of uint8(ord(CS_AC_WRITE)): "written"
+    of uint8(ord(CS_AC_READ)) or uint8(ord(CS_AC_WRITE)): "read and written"
+    else: "not accessed"
+  echo &"{label}: {op.size} bytes, {access}"
+  if op.avx_bcast != X86_AVX_BCAST_INVALID: echo &"{label}: AVX broadcast {op.avx_bcast}"
+  if op.avx_zero_opmask: echo &"{label}: AVX zeroing opmask"
+
+proc printDetail(cs: Capstone; insn: Insn) =
+  if not insn.hasDetail: return
+  let x86 = addr insn.x86
+
+  echo "    prefix: ", hex(x86.prefix), "  opcode: ", hex(x86.opcode)
+  echo &"    rex: {x86.rex:#x}  address size: {x86.addr_size}  modrm: {x86.modrm:#x}  sib: {x86.sib:#x}"
+  if x86.encoding.modrm_offset != 0: echo &"    modrm at byte {x86.encoding.modrm_offset}"
+  if x86.encoding.disp_size != 0:
+    echo &"    displacement {x86.disp:#x}: {x86.encoding.disp_size} bytes at byte {x86.encoding.disp_offset}"
+  if x86.encoding.imm_size != 0:
+    echo &"    immediate: {x86.encoding.imm_size} bytes at byte {x86.encoding.imm_offset}"
+  if x86.sib_base != X86_REG_INVALID: echo &"    sib base: {cs.regName(x86.sib_base)}"
+  if x86.sib_index != X86_REG_INVALID:
+    echo &"    sib index: {cs.regName(x86.sib_index)} * {x86.sib_scale}"
+
+  for index, op in x86[].ops: printOperand(cs, index, op)
+
+  let (read, written) = cs.regsAccess(insn)
+  if read.len > 0: echo "    registers read: ", read.mapIt($cs.regName(it)).join(" ")
+  if written.len > 0: echo "    registers modified: ", written.mapIt($cs.regName(it)).join(" ")
+
+  let groups = @(insn.groups)
+  if groups.len > 0: echo "    groups: ", groups.mapIt($cs.groupName(it)).join(" ")
+
+  # `flags` holds EFLAGS effects, or FPU flag effects for FPU instructions.
+  if not insn.inGroup(X86_GRP_FPU):
+    var modified, tested: seq[string]
+    for (name, bits) in arithmeticFlags:
+      if (x86.flags.eflags and bits[0]) != 0: modified.add name
+      if (x86.flags.eflags and bits[1]) != 0: tested.add name
+    if modified.len > 0: echo "    flags modified: ", modified.join(" ")
+    if tested.len > 0: echo "    flags tested: ", tested.join(" ")
+
+let
+  cs = initCapstone(CS_ARCH_X86, CS_MODE_64, detail = true)
+  codeSize = shellcode.len - commandLine.len
+
+for insn in cs.disasm(shellcode.toOpenArray(0, codeSize - 1), address = 0x1000):
+  echo insn, "    [", hex(insn.bytes), "]"
+  printDetail(cs, insn)
+  echo ""
+
+echo "data: ", cast[string](shellcode[shellcode.len - commandLine.len .. ^2]).escape
