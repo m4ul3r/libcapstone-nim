@@ -85,6 +85,8 @@ type
     free*: cs_free_t
     vsnprintf*: cs_vsnprintf_t
 
+include cmacros
+
 # Overloads for the types client code has at hand.
 
 func `or`*(a, b: cs_mode): cs_mode {.borrow.}
@@ -95,4 +97,59 @@ func `$`*(mode: cs_mode): string =
   ## architectures, so there is no single name to print.
   "0x" & toHex(uint32(mode))
 
-template CPTR*(s: untyped): cstring = cast[cstring](s[0].addr)
+func `$`*[N](text: array[N, cschar]): string =
+  ## The NUL-terminated string in a fixed C buffer: `$insn.mnemonic`, `$insn.op_str`.
+  $cast[cstring](unsafeAddr text)
+
+template CPTR*(s: untyped): cstring {.deprecated: "use `$`, as in `$insn.mnemonic`".} =
+  cast[cstring](s[0].addr)
+
+proc cs_disasm*(handle: csh; code: openArray[byte]; address: uint64; count: csize_t;
+                insn: ptr ptr cs_insn): csize_t =
+  ## `cs_disasm` over a Nim buffer; an empty one disassembles to nothing. For a
+  ## string use `code.toOpenArrayByte(0, code.high)`.
+  if code.len == 0:
+    if insn != nil: insn[] = nil
+    return 0
+  cs_disasm(handle, unsafeAddr code[0], csize_t(code.len), address, count, insn)
+
+proc cs_option*(handle: csh; kind: cs_opt_type; value: cs_opt_value): cs_err =
+  ## `cs_option` for options whose value is a `CS_OPT_*` constant.
+  cs_option(handle, kind, csize_t(ord(value)))
+
+proc cs_option*(handle: csh; kind: cs_opt_type; value: pointer): cs_err =
+  ## `cs_option` for options whose value is a struct: `CS_OPT_SKIPDATA_SETUP`
+  ## (`ptr cs_opt_skipdata`), `CS_OPT_MNEMONIC` (`ptr cs_opt_mnem`) and
+  ## `CS_OPT_MEM` (`ptr cs_opt_mem`). Capstone keeps the skipdata pointer.
+  cs_option(handle, kind, cast[csize_t](value))
+
+proc cs_support*(arch: cs_arch): bool =
+  cs_support(cint(ord(arch)))
+
+# The C API takes register, instruction, group and operand-type ids as plain
+# integers; these accept the enums the ids come from.
+
+proc cs_reg_name*[Reg: enum](handle: csh; reg: Reg): cstring =
+  cs_reg_name(handle, cuint(ord(reg)))
+
+proc cs_insn_name*[Insn: enum](handle: csh; insn: Insn): cstring =
+  cs_insn_name(handle, cuint(ord(insn)))
+
+proc cs_group_name*[Group: enum](handle: csh; group: Group): cstring =
+  cs_group_name(handle, cuint(ord(group)))
+
+proc cs_insn_group*[Group: enum](handle: csh; insn: ptr cs_insn; group: Group): bool =
+  cs_insn_group(handle, insn, cuint(ord(group)))
+
+proc cs_reg_read*[Reg: enum](handle: csh; insn: ptr cs_insn; reg: Reg): bool =
+  cs_reg_read(handle, insn, cuint(ord(reg)))
+
+proc cs_reg_write*[Reg: enum](handle: csh; insn: ptr cs_insn; reg: Reg): bool =
+  cs_reg_write(handle, insn, cuint(ord(reg)))
+
+proc cs_op_count*[OpType: enum](handle: csh; insn: ptr cs_insn; op_type: OpType): cint =
+  cs_op_count(handle, insn, cuint(ord(op_type)))
+
+proc cs_op_index*[OpType: enum](handle: csh; insn: ptr cs_insn; op_type: OpType;
+                                position: cuint): cint =
+  cs_op_index(handle, insn, cuint(ord(op_type)), position)
