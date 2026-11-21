@@ -74,6 +74,8 @@ Ordered by what blocks a release.
 - [x] **H7.** `detail=`, `syntax=`, `mode=`, `setOption`, `enableSkipdata` / `disableSkipdata`, `setMnemonic`.
 - [x] **H8.** `cs.regName`, `insnName`, `groupName` for enums and plain ids; `cs.regsAccess(insn)`.
 - [x] **H9.** Threading documented: one `Capstone` per thread.
+- [x] **H10.** `insn.clone` gives an `OwnedInsn`: a copy with its detail that outlives the loop and works wherever an `Insn` does.
+- [x] **H11.** `cs.decode(slot, code, offset, address)` decodes one instruction at an offset into a reusable `cs.newInsn()` and reports failure instead of stopping, so the caller can skip data and resynchronise.
 
 ### Generation
 
@@ -97,7 +99,7 @@ One thing the generator does that is easy to forget: it drops macros that alias 
 
 ### Tests and CI
 
-- [x] **T1.** `tests/` with 61 tests in 7 files; `nimble test` runs them.
+- [x] **T1.** `tests/` with 65 tests in 7 files; `nimble test` runs them.
 - [x] **T2.** `tests/tarch.nim`: x86 16/32/64, ARM64 and six MIPS mode combinations.
 - [x] **T3.** Edge cases in `tests/tapi.nim` and `tests/traw.nim`: empty input, detail off, skipdata, mode combinations, invalid mode, `cs_regs_access`, custom mnemonic, AT&T syntax, early `break`.
 - [x] **T4.** Detail for ARM, ARM64, MIPS and PowerPC.

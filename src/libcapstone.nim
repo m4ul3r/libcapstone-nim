@@ -49,8 +49,15 @@ when defined(gcDestructors):
     Insn* = object
       ## A view of one disassembled instruction. It borrows memory that
       ## `disasm` reuses for the next instruction and that `Instructions`
-      ## frees: copy what should outlive that (`$insn.mnemonic`).
+      ## frees. To keep an instruction longer, `clone` it.
       p: ptr cs_insn
+      archValue: cs_arch
+
+    OwnedInsn* = ref object
+      ## An instruction that owns its memory: a `clone` of a view, or the slot
+      ## `decode` fills. Everything that takes an `Insn` takes this too.
+      data: cs_insn
+      detailStore: ref cs_detail
       archValue: cs_arch
 
     Instructions* = object
@@ -344,6 +351,63 @@ when defined(gcDestructors):
   iterator items*(insns: Instructions): Insn =
     for index in 0 ..< insns.count:
       yield Insn(p: addr insns.first[index], archValue: insns.archValue)
+
+  # Owned instructions
+
+  converter toInsn*(owned: OwnedInsn): Insn =
+    ## The view of an owned instruction; valid for as long as `owned` is alive.
+    Insn(p: addr owned.data, archValue: owned.archValue)
+
+  func `$`*(owned: OwnedInsn): string = $toInsn(owned)
+
+  proc clone*(insn: Insn): OwnedInsn =
+    ## A copy of the instruction, detail included, that stays valid after the
+    ## loop that produced `insn` has moved on.
+    result = OwnedInsn(data: insn.p[], archValue: insn.archValue)
+    if insn.hasDetail:
+      new(result.detailStore)
+      result.detailStore[] = insn.p.detail[]
+      result.data.detail = addr result.detailStore[]
+    else:
+      result.data.detail = nil
+
+  proc newInsn*(cs: Capstone): OwnedInsn =
+    ## An empty instruction for `decode` to fill.
+    OwnedInsn(archValue: cs.archValue)
+
+  proc decode*(cs: Capstone; into: OwnedInsn; code: openArray[byte]; offset: var int;
+               address: var uint64): bool =
+    ## Decodes the one instruction at `code[offset]` into `into`, which can be
+    ## reused from call to call. On success, advances `offset` and `address`
+    ## past the instruction and returns true.
+    ##
+    ## Returns false, leaving `offset` and `address` alone, at the end of `code`
+    ## and when the bytes there do not decode. The caller decides how to go on,
+    ## for example by skipping a byte; `into` is unspecified until the next
+    ## successful call.
+    if offset < 0 or offset >= code.len: return false
+    # Capstone writes detail through this pointer whenever its detail option is
+    # on, so it always gets real memory, even if `cs` believes detail is off.
+    if into.detailStore == nil: new(into.detailStore)
+    into.data.detail = addr into.detailStore[]
+    into.archValue = cs.archValue
+    var
+      cursor = unsafeAddr code[offset]
+      remaining = csize_t(code.len - offset)
+      next = address
+    let decoded = cs_disasm_iter(cs.handle, addr cursor, addr remaining, addr next, addr into.data)
+    if not cs.detailOn: into.data.detail = nil
+    if decoded:
+      offset = code.len - int(remaining)
+      address = next
+    else:
+      check cs_errno(cs.handle)
+    decoded
+
+  proc decode*(cs: Capstone; into: OwnedInsn; code: string; offset: var int;
+               address: var uint64): bool =
+    ## `decode` over the bytes of a string.
+    cs.decode(into, code.toOpenArrayByte(0, code.high), offset, address)
 
 else:
   template initCapstone*(arch: cs_arch; mode: cs_mode; detail = false): untyped =

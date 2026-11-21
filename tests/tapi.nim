@@ -168,6 +168,62 @@ suite "detail":
       check insn.arch == CS_ARCH_X86
       expect CapstoneError: discard insn.arm64.op_count
 
+suite "keeping instructions and decoding step by step":
+  test "a clone stays valid after the loop has moved on":
+    let cs = initCapstone(CS_ARCH_X86, CS_MODE_64, detail = true)
+    var kept: seq[OwnedInsn]
+    for insn in cs.disasm(prologue, 0x1000): kept.add insn.clone
+    check kept.mapIt($it) == @["0x1000: push rbp", "0x1001: mov rbp, rsp", "0x1004: ret"]
+    check kept[1].size == 3
+    check kept[1].x86.ops.len == 2
+    check cs.regName(kept[1].x86.ops[0].value.reg) == "rbp"
+    check kept[2].inGroup(X86_GRP_RET)
+
+  test "a clone of an instruction without detail has none":
+    let cs = initCapstone(CS_ARCH_X86, CS_MODE_64)
+    var kept: seq[OwnedInsn]
+    for insn in cs.disasmAll(prologue): kept.add insn.clone
+    check kept.len == 3
+    check not kept[0].hasDetail
+    expect CapstoneError: discard kept[0].x86.op_count
+
+  test "decode steps through a buffer and lets the caller skip what does not decode":
+    let cs = initCapstone(CS_ARCH_X86, CS_MODE_64)
+    let slot = cs.newInsn()
+    var
+      offset = 0
+      address = 0x1000'u64
+      steps: seq[string]
+    while offset < withData.len:
+      if cs.decode(slot, withData, offset, address):
+        steps.add $slot
+      else:
+        steps.add "skipped the byte at " & $offset
+        inc offset
+        inc address
+    check steps == @["0x1000: push rbp", "skipped the byte at 1", "skipped the byte at 2",
+                     "0x1003: ret"]
+    check not cs.decode(slot, withData, offset, address) # at the end
+    check offset == withData.len
+    var stringOffset = 1
+    check cs.decode(slot, "\x90\xc3", stringOffset, address) # a string works too
+    check slot.mnemonic == "ret"
+    check stringOffset == 2
+
+  test "decode fills in detail when it is on, also when turned on later":
+    var cs = initCapstone(CS_ARCH_X86, CS_MODE_64)
+    let slot = cs.newInsn()
+    var
+      offset = 0
+      address = 0'u64
+    require cs.decode(slot, prologue, offset, address)
+    check not slot.hasDetail
+    cs.detail = true
+    require cs.decode(slot, prologue, offset, address)
+    check $slot == "0x1: mov rbp, rsp"
+    check slot.x86.ops.len == 2
+    check offset == 4
+
 suite "errors":
   test "an invalid mode raises with Capstone's error":
     try:
